@@ -1758,3 +1758,173 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
 "zapota",
 "Ziziphus",
 "Zizyphus"];}
+/* === BOT PRO: modo de segundo plano (implementação segura no WebView) === */
+;(function(){
+  if (globalThis.__RDC_BG_SAFE__) return;
+  globalThis.__RDC_BG_SAFE__ = true;
+
+  const BG_KEY = 'rdc_bg_enabled';
+  const BG_AUDIO_ID = '__rdc_bg_audio';
+  const BG_BOX_ID = 'rdc_background_box';
+  let audio = null;
+  let audioUrl = null;
+
+  function buildSilentWav(seconds = 30, sampleRate = 8000) {
+    const samples = Math.max(sampleRate * seconds, sampleRate * 6);
+    const buffer = new ArrayBuffer(44 + samples);
+    const view = new DataView(buffer);
+    const write = (offset, text) => { for (let i=0;i<text.length;i++) view.setUint8(offset+i,text.charCodeAt(i)); };
+    write(0,'RIFF');
+    view.setUint32(4,36 + samples,true);
+    write(8,'WAVE');
+    write(12,'fmt ');
+    view.setUint32(16,16,true);
+    view.setUint16(20,1,true);
+    view.setUint16(22,1,true);
+    view.setUint32(24,sampleRate,true);
+    view.setUint32(28,sampleRate,true);
+    view.setUint16(32,1,true);
+    view.setUint16(34,8,true);
+    write(36,'data');
+    view.setUint32(40,samples,true);
+    for (let i=44;i<buffer.byteLength;i++) view.setUint8(i,128);
+    return new Blob([buffer],{type:'audio/wav'});
+  }
+
+  function ensureAudio(){
+    if (audio) return audio;
+    audio = document.getElementById(BG_AUDIO_ID) || document.createElement('audio');
+    audio.id = BG_AUDIO_ID;
+    audio.loop = true;
+    audio.preload = 'auto';
+    audio.volume = 1;
+    audio.style.display = 'none';
+    if (!audio.src) {
+      audioUrl = URL.createObjectURL(buildSilentWav());
+      audio.src = audioUrl;
+    }
+    if (!audio.isConnected) document.documentElement.appendChild(audio);
+    return audio;
+  }
+
+  function setupMediaSession(){
+    try {
+      if (!('mediaSession' in navigator)) return;
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'Robô de Comentários',
+        artist: 'Executando em segundo plano',
+        album: 'BOT PRO'
+      });
+      navigator.mediaSession.setActionHandler('play',()=>startBackground(false));
+      navigator.mediaSession.setActionHandler('pause',()=>pauseBackground());
+      navigator.mediaSession.setActionHandler('stop',()=>stopBackground());
+    } catch(e) { console.warn('[RDC BG] MediaSession:',e); }
+  }
+
+  function setState(on, text){
+    try { localStorage.setItem(BG_KEY,on?'1':'0'); } catch(e) {}
+    const btn = document.getElementById('rdc_bg_toggle');
+    const status = document.getElementById('rdc_bg_status');
+    if (btn) {
+      btn.dataset.on = on ? '1':'0';
+      btn.textContent = on ? '⏹ Desativar segundo plano' : '▶ Ativar segundo plano';
+      btn.style.background = on ? '#ef4444' : '#2563eb';
+    }
+    if (status) {
+      status.textContent = text || (on ? 'Ativo — o Android deve exibir os controles de mídia.' : 'Desativado');
+      status.style.color = on ? '#16a34a' : '#64748b';
+    }
+    try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = on ? 'playing' : 'none'; } catch(e) {}
+  }
+
+  async function startBackground(fromUser = true){
+    setupMediaSession();
+    const a = ensureAudio();
+    try {
+      await a.play();
+      setState(true,'Ativo — mídia silenciosa mantendo a sessão do WebView em execução.');
+      // Atualiza o marcador de sessão imediatamente; o código original já o renova periodicamente.
+      try {
+        if (localStorage.Session) {
+          const id = localStorage.Session.split(':')[0];
+          localStorage.Session = id + ':' + Date.now();
+        }
+      } catch(e) {}
+      return true;
+    } catch(e) {
+      setState(false, fromUser ? 'O Android bloqueou o início da mídia. Toque novamente em Ativar.' : 'Toque em Ativar para iniciar o modo de segundo plano.');
+      console.warn('[RDC BG] play falhou:',e);
+      return false;
+    }
+  }
+
+  function pauseBackground(){
+    if (audio) audio.pause();
+    setState(false,'Pausado');
+  }
+
+  function stopBackground(){
+    try {
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    } catch(e) {}
+    setState(false,'Desativado');
+  }
+
+  function mountButton(){
+    if (document.getElementById(BG_BOX_ID)) return true;
+    const host = document.getElementById('__rdc_body') || document.getElementById('app_body');
+    if (!host) return false;
+
+    const box = document.createElement('div');
+    box.id = BG_BOX_ID;
+    box.className = 'config';
+    box.style.cssText = 'margin:10px 0;padding:14px;border-radius:14px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 3px 14px rgba(0,0,0,.05);';
+    box.innerHTML = "<div style='font-size:13px;font-weight:900;color:#1a1a2e;margin-bottom:5px;'>🎵 Segundo plano</div>"+
+      "<div id='rdc_bg_status' style='font-size:11px;color:#64748b;margin-bottom:9px;'>Desativado</div>"+
+      "<button type='button' id='rdc_bg_toggle' style='width:100%;border:0;border-radius:11px;padding:12px;background:#2563eb;color:#fff;font-weight:900;font-size:13px;'>▶ Ativar segundo plano</button>"+
+      "<div style='font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.35;'>Mantém uma sessão de mídia silenciosa ativa para reduzir a suspensão do WebView quando o APK sai da tela.</div>";
+
+    host.insertBefore(box,host.firstChild);
+    document.getElementById('rdc_bg_toggle').addEventListener('click',async function(){
+      if (this.dataset.on === '1') stopBackground();
+      else await startBackground(true);
+    });
+
+    if (localStorage.getItem(BG_KEY)==='1') {
+      setState(false,'Toque em Ativar para retomar o segundo plano.');
+    }
+    return true;
+  }
+
+  document.addEventListener('visibilitychange',()=>{
+    if (!document.hidden) {
+      try {
+        if (localStorage.Session) {
+          const id = localStorage.Session.split(':')[0];
+          localStorage.Session = id + ':' + Date.now();
+        }
+      } catch(e) {}
+    }
+  });
+
+  window.addEventListener('online',()=>{
+    try {
+      if (localStorage.Session) {
+        const id = localStorage.Session.split(':')[0];
+        localStorage.Session = id + ':' + Date.now();
+      }
+    } catch(e) {}
+  });
+
+  setupMediaSession();
+  if (!mountButton()) {
+    const obs = new MutationObserver(()=>{ if (mountButton()) obs.disconnect(); });
+    obs.observe(document.documentElement,{childList:true,subtree:true});
+    setTimeout(()=>obs.disconnect(),30000);
+  }
+
+  globalThis.rdcBackgroundMode = {start:startBackground,stop:stopBackground,pause:pauseBackground};
+})();
