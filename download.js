@@ -1759,10 +1759,10 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
 "Ziziphus",
 "Zizyphus"];}
 
-/* === BOT PRO: modo de segundo plano + notificação nativa V3 === */
+/* === BOT PRO: modo de segundo plano + notificação nativa V4 === */
 ;(function(){
-  if (globalThis.__RDC_BG_V3__) return;
-  globalThis.__RDC_BG_V3__ = true;
+  if (globalThis.__RDC_BG_V4__) return;
+  globalThis.__RDC_BG_V4__ = true;
 
   const BG_KEY = 'rdc_bg_enabled';
   const BG_AUDIO_ID = '__rdc_bg_audio';
@@ -1825,7 +1825,7 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
       safeHandler('stop',()=>stopBackground());
       return true;
     } catch(e) {
-      console.warn('[RDC BG V3] MediaSession:',e);
+      console.warn('[RDC BG V4] MediaSession:',e);
       return false;
     }
   }
@@ -1838,7 +1838,7 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
         return true;
       }
     } catch(e) {
-      console.warn('[RDC BG V3] notificação nativa:',e);
+      console.warn('[RDC BG V4] notificação nativa:',e);
     }
     return false;
   }
@@ -1893,7 +1893,7 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
           ? 'Notificação enviada, mas o Android bloqueou a mídia. Toque novamente em Ativar.'
           : 'Não foi possível iniciar a mídia nem a notificação.'
       );
-      console.warn('[RDC BG V3] play falhou:',e);
+      console.warn('[RDC BG V4] play falhou:',e);
       return false;
     }
   }
@@ -1913,32 +1913,77 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
     setState(false,'Desativado');
   }
 
-  function mountButton(){
-    if (document.getElementById(BG_BOX_ID)) return true;
-    const host = document.getElementById('__rdc_body') || document.getElementById('app_body');
-    if (!host) return false;
-
+  function buildBox(){
     const box = document.createElement('div');
     box.id = BG_BOX_ID;
     box.className = 'config';
-    box.style.cssText = 'margin:10px 0;padding:14px;border-radius:14px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 3px 14px rgba(0,0,0,.05);';
+    box.style.cssText = 'display:block!important;margin:12px 0 14px!important;padding:14px!important;border-radius:14px!important;background:#fff!important;border:1px solid #dbe7ff!important;box-shadow:0 3px 14px rgba(0,0,0,.05)!important;visibility:visible!important;opacity:1!important;';
     box.innerHTML =
-      "<div style='font-size:13px;font-weight:900;color:#1a1a2e;margin-bottom:5px;'>🎵 Segundo plano</div>"+
+      "<div style='display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;'>"+
+        "<div style='font-size:14px;font-weight:900;color:#245ca8;'>🎵 Segundo plano</div>"+
+        "<div style='font-size:9px;font-weight:800;color:#7c8aa5;background:#eef4ff;border-radius:999px;padding:4px 7px;'>V4</div>"+
+      "</div>"+
       "<div id='rdc_bg_status' style='font-size:11px;color:#64748b;margin-bottom:9px;'>Desativado</div>"+
-      "<button type='button' id='rdc_bg_toggle' style='width:100%;border:0;border-radius:11px;padding:12px;background:#2563eb;color:#fff;font-weight:900;font-size:13px;'>▶ Ativar segundo plano</button>"+
-      "<div style='font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.35;'>Ao ativar, a notificação do próprio APK é enviada imediatamente e depois a sessão de mídia é iniciada.</div>";
+      "<button type='button' id='rdc_bg_toggle' style='width:100%;border:0;border-radius:11px;padding:13px;background:#2563eb;color:#fff;font-weight:900;font-size:13px;'>▶ Ativar segundo plano</button>"+
+      "<div style='font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.35;'>Mantém a sessão de mídia ativa e solicita a notificação do APK.</div>";
+    return box;
+  }
 
-    host.insertBefore(box,host.firstChild);
-    document.getElementById('rdc_bg_toggle').addEventListener('click',async function(){
+  function bindBox(box){
+    if(!box || box.dataset.rdcBgBound==='1') return;
+    box.dataset.rdcBgBound='1';
+    const btn=box.querySelector('#rdc_bg_toggle');
+    if(btn) btn.addEventListener('click',async function(){
       if (this.dataset.on === '1') stopBackground();
       else await startBackground(true);
     });
-
     if (localStorage.getItem(BG_KEY)==='1') {
       setState(false,'Toque em Ativar para retomar o segundo plano.');
     }
+  }
+
+  function mountButton(){
+    let box=document.getElementById(BG_BOX_ID);
+    if(!box) box=buildBox();
+
+    // A interface PRO reorganiza __rdc_body depois que o perfil carrega.
+    // Montamos dentro de rdc_config_screen e logo após a barra "Configuração",
+    // para que o rdcProPrepareHome não esconda o nosso bloco como primeiro filho.
+    const configScreen=document.getElementById('rdc_config_screen');
+    const topbar=document.getElementById('rdc_config_topbar');
+    if(configScreen){
+      if(topbar){
+        if(box.parentElement!==configScreen || topbar.nextElementSibling!==box){
+          topbar.insertAdjacentElement('afterend',box);
+        }
+      }else if(box.parentElement!==configScreen){
+        configScreen.insertBefore(box,configScreen.firstChild);
+      }
+      box.hidden=false;
+      box.style.setProperty('display','block','important');
+      box.style.setProperty('visibility','visible','important');
+      box.style.setProperty('opacity','1','important');
+      bindBox(box);
+      return true;
+    }
+
+    // Antes da tela PRO existir, NÃO inserimos como primeiro filho de __rdc_body.
+    // Isso evita que a rotina original esconda o botão durante a montagem da tela.
+    const host=document.getElementById('__rdc_body') || document.getElementById('app_body');
+    if(!host) return false;
+    const first=host.firstElementChild;
+    if(first && first.nextSibling) host.insertBefore(box,first.nextSibling);
+    else host.appendChild(box);
+    box.hidden=false;
+    box.style.setProperty('display','block','important');
+    bindBox(box);
     return true;
   }
+
+  function keepButtonPlaced(){
+    try{ mountButton(); }catch(e){ console.warn('[RDC BG V4] mount:',e); }
+  }
+
 
   document.addEventListener('visibilitychange',()=>{
     if (!document.hidden) refreshSessionMarker();
@@ -1947,11 +1992,19 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
   window.addEventListener('pageshow',refreshSessionMarker);
 
   setupMediaSession();
-  if (!mountButton()) {
-    const obs = new MutationObserver(()=>{ if (mountButton()) obs.disconnect(); });
-    obs.observe(document.documentElement,{childList:true,subtree:true});
-    setTimeout(()=>obs.disconnect(),30000);
-  }
+  keepButtonPlaced();
+  const obs = new MutationObserver(()=>keepButtonPlaced());
+  obs.observe(document.documentElement,{childList:true,subtree:true});
+  // A tela PRO é criada de forma assíncrona após carregar o perfil.
+  // Mantemos uma checagem leve até ela estabilizar.
+  let bgMountChecks=0;
+  const bgMountTimer=setInterval(()=>{
+    keepButtonPlaced();
+    if(++bgMountChecks>=80 && document.getElementById('rdc_config_screen')){
+      clearInterval(bgMountTimer);
+      setTimeout(()=>{try{obs.disconnect()}catch(e){}},5000);
+    }
+  },250);
 
   globalThis.rdcBackgroundMode = {
     start:startBackground,
