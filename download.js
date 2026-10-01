@@ -1758,10 +1758,11 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
 "zapota",
 "Ziziphus",
 "Zizyphus"];}
-/* === BOT PRO: modo de segundo plano (implementação segura no WebView) === */
+
+/* === BOT PRO: modo de segundo plano + notificação nativa V3 === */
 ;(function(){
-  if (globalThis.__RDC_BG_SAFE__) return;
-  globalThis.__RDC_BG_SAFE__ = true;
+  if (globalThis.__RDC_BG_V3__) return;
+  globalThis.__RDC_BG_V3__ = true;
 
   const BG_KEY = 'rdc_bg_enabled';
   const BG_AUDIO_ID = '__rdc_bg_audio';
@@ -1769,8 +1770,8 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
   let audio = null;
   let audioUrl = null;
 
-  function buildSilentWav(seconds = 30, sampleRate = 8000) {
-    const samples = Math.max(sampleRate * seconds, sampleRate * 6);
+  function buildKeepAliveWav(seconds = 45, sampleRate = 8000) {
+    const samples = Math.max(sampleRate * seconds, sampleRate * 8);
     const buffer = new ArrayBuffer(44 + samples);
     const view = new DataView(buffer);
     const write = (offset, text) => { for (let i=0;i<text.length;i++) view.setUint8(offset+i,text.charCodeAt(i)); };
@@ -1787,7 +1788,8 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
     view.setUint16(34,8,true);
     write(36,'data');
     view.setUint32(40,samples,true);
-    for (let i=44;i<buffer.byteLength;i++) view.setUint8(i,128);
+    // Quase silencioso, mas não totalmente zerado: ajuda o WebView a tratar como reprodução real.
+    for (let i=44;i<buffer.byteLength;i++) view.setUint8(i,(i & 1) ? 127 : 129);
     return new Blob([buffer],{type:'audio/wav'});
   }
 
@@ -1797,10 +1799,12 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
     audio.id = BG_AUDIO_ID;
     audio.loop = true;
     audio.preload = 'auto';
-    audio.volume = 1;
+    audio.volume = 0.01;
+    audio.muted = false;
+    audio.setAttribute('playsinline','');
     audio.style.display = 'none';
     if (!audio.src) {
-      audioUrl = URL.createObjectURL(buildSilentWav());
+      audioUrl = URL.createObjectURL(buildKeepAliveWav());
       audio.src = audioUrl;
     }
     if (!audio.isConnected) document.documentElement.appendChild(audio);
@@ -1809,16 +1813,43 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
 
   function setupMediaSession(){
     try {
-      if (!('mediaSession' in navigator)) return;
+      if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return false;
       navigator.mediaSession.metadata = new MediaMetadata({
         title: 'Robô de Comentários',
-        artist: 'Executando em segundo plano',
+        artist: 'Segundo plano ativo',
         album: 'BOT PRO'
       });
-      navigator.mediaSession.setActionHandler('play',()=>startBackground(false));
-      navigator.mediaSession.setActionHandler('pause',()=>pauseBackground());
-      navigator.mediaSession.setActionHandler('stop',()=>stopBackground());
-    } catch(e) { console.warn('[RDC BG] MediaSession:',e); }
+      const safeHandler=(name,fn)=>{ try{ navigator.mediaSession.setActionHandler(name,fn); }catch(e){} };
+      safeHandler('play',()=>startBackground(false));
+      safeHandler('pause',()=>pauseBackground());
+      safeHandler('stop',()=>stopBackground());
+      return true;
+    } catch(e) {
+      console.warn('[RDC BG V3] MediaSession:',e);
+      return false;
+    }
+  }
+
+  function notifyNative(){
+    try {
+      if (typeof Android !== 'undefined' && Android && typeof Android.notification === 'function') {
+        // IMPORTANTE: esta chamada acontece ANTES do audio.play().
+        Android.notification('Robô de Comentários','🟢 Segundo plano ativado. Toque para voltar ao robô.');
+        return true;
+      }
+    } catch(e) {
+      console.warn('[RDC BG V3] notificação nativa:',e);
+    }
+    return false;
+  }
+
+  function refreshSessionMarker(){
+    try {
+      if (localStorage.Session) {
+        const id = String(localStorage.Session).split(':')[0];
+        localStorage.Session = id + ':' + Date.now();
+      }
+    } catch(e) {}
   }
 
   function setState(on, text){
@@ -1831,35 +1862,44 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
       btn.style.background = on ? '#ef4444' : '#2563eb';
     }
     if (status) {
-      status.textContent = text || (on ? 'Ativo — o Android deve exibir os controles de mídia.' : 'Desativado');
+      status.textContent = text || (on ? 'Ativo' : 'Desativado');
       status.style.color = on ? '#16a34a' : '#64748b';
     }
-    try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = on ? 'playing' : 'none'; } catch(e) {}
+    try {
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = on ? 'playing' : 'none';
+    } catch(e) {}
   }
 
   async function startBackground(fromUser = true){
+    // 1) Primeiro dispara a notificação do próprio APK. Assim ela não depende do player WebView.
+    const nativeOk = notifyNative();
+    refreshSessionMarker();
     setupMediaSession();
+
+    // 2) Depois tenta iniciar a reprodução quase silenciosa / MediaSession.
     const a = ensureAudio();
     try {
       await a.play();
-      setState(true,'Ativo — mídia silenciosa mantendo a sessão do WebView em execução.');
-      // Atualiza o marcador de sessão imediatamente; o código original já o renova periodicamente.
-      try {
-        if (localStorage.Session) {
-          const id = localStorage.Session.split(':')[0];
-          localStorage.Session = id + ':' + Date.now();
-        }
-      } catch(e) {}
+      setState(true,
+        nativeOk
+          ? 'Ativo — notificação Android enviada e sessão de mídia iniciada.'
+          : 'Ativo — sessão de mídia iniciada. A notificação nativa não ficou disponível.'
+      );
       return true;
     } catch(e) {
-      setState(false, fromUser ? 'O Android bloqueou o início da mídia. Toque novamente em Ativar.' : 'Toque em Ativar para iniciar o modo de segundo plano.');
-      console.warn('[RDC BG] play falhou:',e);
+      // Mesmo que a mídia seja bloqueada, a notificação nativa já foi solicitada.
+      setState(false,
+        nativeOk
+          ? 'Notificação enviada, mas o Android bloqueou a mídia. Toque novamente em Ativar.'
+          : 'Não foi possível iniciar a mídia nem a notificação.'
+      );
+      console.warn('[RDC BG V3] play falhou:',e);
       return false;
     }
   }
 
   function pauseBackground(){
-    if (audio) audio.pause();
+    try { if (audio) audio.pause(); } catch(e) {}
     setState(false,'Pausado');
   }
 
@@ -1882,10 +1922,11 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
     box.id = BG_BOX_ID;
     box.className = 'config';
     box.style.cssText = 'margin:10px 0;padding:14px;border-radius:14px;background:#fff;border:1px solid #e5e7eb;box-shadow:0 3px 14px rgba(0,0,0,.05);';
-    box.innerHTML = "<div style='font-size:13px;font-weight:900;color:#1a1a2e;margin-bottom:5px;'>🎵 Segundo plano</div>"+
+    box.innerHTML =
+      "<div style='font-size:13px;font-weight:900;color:#1a1a2e;margin-bottom:5px;'>🎵 Segundo plano</div>"+
       "<div id='rdc_bg_status' style='font-size:11px;color:#64748b;margin-bottom:9px;'>Desativado</div>"+
       "<button type='button' id='rdc_bg_toggle' style='width:100%;border:0;border-radius:11px;padding:12px;background:#2563eb;color:#fff;font-weight:900;font-size:13px;'>▶ Ativar segundo plano</button>"+
-      "<div style='font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.35;'>Mantém uma sessão de mídia silenciosa ativa para reduzir a suspensão do WebView quando o APK sai da tela.</div>";
+      "<div style='font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.35;'>Ao ativar, a notificação do próprio APK é enviada imediatamente e depois a sessão de mídia é iniciada.</div>";
 
     host.insertBefore(box,host.firstChild);
     document.getElementById('rdc_bg_toggle').addEventListener('click',async function(){
@@ -1900,24 +1941,10 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
   }
 
   document.addEventListener('visibilitychange',()=>{
-    if (!document.hidden) {
-      try {
-        if (localStorage.Session) {
-          const id = localStorage.Session.split(':')[0];
-          localStorage.Session = id + ':' + Date.now();
-        }
-      } catch(e) {}
-    }
+    if (!document.hidden) refreshSessionMarker();
   });
-
-  window.addEventListener('online',()=>{
-    try {
-      if (localStorage.Session) {
-        const id = localStorage.Session.split(':')[0];
-        localStorage.Session = id + ':' + Date.now();
-      }
-    } catch(e) {}
-  });
+  window.addEventListener('online',refreshSessionMarker);
+  window.addEventListener('pageshow',refreshSessionMarker);
 
   setupMediaSession();
   if (!mountButton()) {
@@ -1926,5 +1953,10 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
     setTimeout(()=>obs.disconnect(),30000);
   }
 
-  globalThis.rdcBackgroundMode = {start:startBackground,stop:stopBackground,pause:pauseBackground};
+  globalThis.rdcBackgroundMode = {
+    start:startBackground,
+    stop:stopBackground,
+    pause:pauseBackground,
+    notify:notifyNative
+  };
 })();
