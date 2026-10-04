@@ -516,7 +516,7 @@ $(document).off("click.rdcSwitchContinue","#rdc_switch_continue").on("click.rdcS
 $(document).off("click.rdcSwitchEnd","#rdc_switch_end").on("click.rdcSwitchEnd","#rdc_switch_end",function(){
     $("#rdc_account_checkpoint").remove();b=!1;clearTimeout(rdcTimer);$("#countdown").html("⏹️ Sessão encerrada.");
 });
-function rdcSchedule(wait,kind){if(!b||rdcSent>=rdcLimit)return;rdcCountdown=Math.max(1,Math.round(wait||1));rdcCountdownTotal=rdcCountdown;rdcBatchPause=kind==='batch';rdcPostBlock=kind==='blocked';rdcUpdate();clearTimeout(rdcTimer);rdcTimer=setTimeout(()=>{if(!b)return;rdcBatchPause=!1;rdcPostBlock=!1;const next=rdcTakeNext();if(next)rdcSend(next);else{$('#countdown').html('✅ Fila concluída.');b=!1}},rdcCountdown*1000)}function rdcAfterSuccess(){if(rdcSent>=rdcLimit){b=!1;$('#countdown').html('✅ Limite de comentários atingido.');rdcUpdate();return}if(rdcAccountCheckpoint())return;const batch=rdcSent>0&&rdcSent%rdcPauseEvery===0,wait=Math.floor(Math.random()*(rdcMax-rdcMin+1))+rdcMin;rdcSchedule(wait,batch?'batch':'normal')}async function rdcSend(item){if(!item||!item.text||!b)return;rdcCurrent=item;$('#rdc_current_comment').text(item.text);rdcUpdate();$('#countdown').html('<span style="color:#5b7fff">Enviando comentário...</span>');if(!await m()){g();return}$.ajax({url:'https://www.instagram.com/api/v1/web/comments/'+f.id+'/add/',type:'POST',xhrFields:{withCredentials:!0},headers:s,data:'comment_text='+encodeURIComponent(item.text),success:function(resp,status,xhr){const raw=typeof resp==='string'?resp:JSON.stringify(resp||{});if(xhr&&xhr.status===302||raw.includes('<html')||raw.includes('login'))return rdcHandle({status:'redirected'},item);rdcHandle(resp,item)},error:function(xhr){let resp=xhr&&xhr.responseText?xhr.responseText:{status:'redirected'};rdcHandle(resp,item)}})}function rdcHandle(resp,item){let data=resp;try{if(typeof data==='string')data=JSON.parse(data)}catch(e){data={status:'redirected'}}data=data||{};if(data.status==='ok'){rdcSent++;rdcAccountSent++;const row=rdcHistoryRow(item.text,'Enviado',_.like_comment?'aguardando':'desligado');const likeTask=rdcLike(data?.comment?.pk||data?.comment?.id||data?.comment?.comment_id||data?.comment_id||data?.pk||data?.id,item.text,row);rdcFillQueue();rdcUpdate();Promise.resolve(likeTask).finally(()=>rdcAfterSuccess());return}if(data.status==='fail'&&data.cause==='nonmentionable'){rdcFailed++;rdcHistoryRow(item.text,'Não mencionável','—');rdcUpdate();rdcSchedule(Math.floor(Math.random()*(rdcMax-rdcMin+1))+rdcMin,'normal');return}if(data.status==='fail'){rdcBlocked++;rdcFailed++;rdcHistoryRow(item.text,'Bloqueado','—');rdcUpdate();const cooldown=Math.floor(181*Math.random())+360;rdcSchedule(cooldown,'blocked');return}rdcFailed++;rdcHistoryRow(item.text,'Erro','—');rdcUpdate();rdcSchedule(Math.floor(Math.random()*(rdcMax-rdcMin+1))+rdcMin,'normal')}$(document).off('click.rdcExport','#rdc_export_history').on('click.rdcExport','#rdc_export_history',function(){try{const rows=[['#','Horário','Comentário','Resultado','Curtir'],...rdcHistory.map(x=>[x.n,x.time,x.text,x.result,x.like])],csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n'),blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='historico_comentarios.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(e){malert({body:'Não foi possível exportar o histórico.'})}});rdcFillQueue();rdcUpdate();const rdcFirst=rdcTakeNext();if(rdcFirst)rdcSend(rdcFirst);else{$('#countdown').html('⚠️ Nenhum comentário disponível.');b=!1}setInterval(()=>{if(rdcCountdown>0&&b){rdcCountdown--;if(rdcCountdown>0){$('#countdown').html(`⏱️ ${rdcBatchPause?`Pausa após ${rdcPauseEvery} comentário${rdcPauseEvery>1?'s':''}: `:rdcPostBlock?'Aguardando após bloqueio: ':''}<b>${rdcCountdown}s</b>`)}else{$('#countdown').html('<span style="color:#5b7fff">Preparando próximo comentário...</span>')}}rdcUpdate()},1000)}()}},250)}()}else malert({body:"URL inválido, cole o link de uma publicação."})});const q=JSON.parse(localStorage.getItem("userLists")||"{}"),P=document.getElementById("downloaded_lists");setTimeout(()=>{0==Object.entries(q).length&&(P.innerHTML="<option disabled value=''>Nenhuma lista baixada</option>")},1e3),P.innerHTML=Object.entries(q).map(([t,e])=>`<option value="${e}">${t}</option>`).join("");const C=document.getElementById("config_list");async function d(t,e){let n="",o="",i="";async function a(t){return new Promise((e,n)=>{$.ajax({...t,success:e,error:n})})}try{let e=await a({url:"https://www.instagram.com/api/graphql",method:"POST",xhrFields:{withCredentials:!0},headers:s,dataType:"json",contentType:"application/x-www-form-urlencoded",data:`fb_dtsg=${localStorage.getItem("fb_dtsg")}&variables={"enable_integrity_filters":true,"id":"${t}","__relay_internal__pv__PolarisCannesGuardianExperienceEnabledrelayprovider":true,"__relay_internal__pv__PolarisCASB976ProfileEnabledrelayprovider":false,"__relay_internal__pv__PolarisWebSchoolsEnabledrelayprovider":false,"__relay_internal__pv__PolarisRepostsConsumptionEnabledrelayprovider":true,"__relay_internal__pv__PolarisShortDramaEnabledrelayprovider":false}&doc_id=28036671149327607`});const o=e?.data?.user||e?.user;if(e?.data?.user)return o;throw n=JSON.stringify(e),new Error("GraphQL retornou dados inválidos.")}catch(t){n=JSON.stringify(t.responseText||t)}try{const t=await a({url:"https://www.instagram.com/api/v1/users/web_profile_info/?username="+e,type:"GET",headers:s,xhrFields:{withCredentials:!0}}),n=t?.data?.user||t?.user;if(n?.id)return n;throw o=JSON.stringify(t),new Error("web_profile_info retornou dados inválidos.")}catch(t){o=JSON.stringify(t.responseText||t)}try{const e=await a({url:`https://www.instagram.com/api/v1/users/${t}/info/`,method:"GET",headers:s,xhrFields:{withCredentials:!0},dataType:"json"}),n=e?.user||e?.data?.user;if(n?.pk||n?.id)return n;throw i=JSON.stringify(e),new Error("users/info retornou dados inválidos.")}catch(t){i=JSON.stringify(t.responseText||t)}throw malert({body:z.error_api+"<span style='font-size:11px;color:gray'><br>graphql: "+n+"<br>web_profile_info: "+o+"<br>users/info: "+i+"</span>",onClose:()=>{location.reload()}}),new Error("Não foi possível obter os dados do perfil.")}function c(){malert({body:'<div style="text-align:center">\n<div style="font-size:36px;margin-bottom:8px">⭐</div>\n<b style="font-size:16px">Versão PRO</b>\n<div style="margin: 12px 0; text-align:left; background:#f8f9ff; border-radius:10px; padding:12px;">\n✅ <b>Remove todos os anúncios</b><br>\n✅ <b>Desbloqueia funcionalidades e limites</b><br>\n✅ <b>Acesso vitalício</b><br>\n✅ <b>Interface mais limpa</b><br>\n🙏 <b>Suporte ao desenvolvimento</b>\n</div>\n<small style="color:#888">Válido para sua conta do Google Play.</small><br>\n<button id=\'funPro\' style=\'width: 90%;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;padding:13px;border-radius:10px;border:none;font-weight:800;font-size:15px;margin-top:10px;cursor:pointer;\'>🚀 Obter PRO</button>\n</div>'})}
+function rdcSchedule(wait,kind){if(!b||rdcSent>=rdcLimit)return;rdcCountdown=Math.max(1,Math.round(wait||1));rdcCountdownTotal=rdcCountdown;rdcBatchPause=kind==='batch';rdcPostBlock=kind==='blocked';rdcUpdate();clearTimeout(rdcTimer);rdcTimer=setTimeout(()=>{if(!b)return;rdcBatchPause=!1;rdcPostBlock=!1;const next=rdcTakeNext();if(next)rdcSend(next);else{$('#countdown').html('✅ Fila concluída.');b=!1}},rdcCountdown*1000)}function rdcAfterSuccess(){if(rdcSent>=rdcLimit){b=!1;$('#countdown').html('✅ Limite de comentários atingido.');rdcUpdate();return}if(rdcAccountCheckpoint())return;const batch=rdcSent>0&&rdcSent%rdcPauseEvery===0,wait=Math.floor(Math.random()*(rdcMax-rdcMin+1))+rdcMin;rdcSchedule(wait,batch?'batch':'normal')}async function rdcSend(item){if(!item||!item.text||!b)return;rdcCurrent=item;$('#rdc_current_comment').text(item.text);rdcUpdate();$('#countdown').html('<span style="color:#5b7fff">Enviando comentário...</span>');if(!await m()){g();return}$.ajax({url:'https://www.instagram.com/api/v1/web/comments/'+f.id+'/add/',type:'POST',xhrFields:{withCredentials:!0},headers:s,data:'comment_text='+encodeURIComponent(item.text),success:function(resp,status,xhr){const raw=typeof resp==='string'?resp:JSON.stringify(resp||{});if(xhr&&xhr.status===302||raw.includes('<html')||raw.includes('login'))return rdcHandle({status:'redirected'},item);rdcHandle(resp,item)},error:function(xhr){let resp=xhr&&xhr.responseText?xhr.responseText:{status:'redirected'};rdcHandle(resp,item)}})}function rdcHandle(resp,item){let data=resp;try{if(typeof data==='string')data=JSON.parse(data)}catch(e){data={status:'redirected'}}data=data||{};if(data.status==='ok'){rdcSent++;rdcAccountSent++;const row=rdcHistoryRow(item.text,'Enviado',_.like_comment?'aguardando':'desligado');const likeTask=rdcLike(data?.comment?.pk||data?.comment?.id||data?.comment?.comment_id||data?.comment_id||data?.pk||data?.id,item.text,row);rdcFillQueue();rdcUpdate();try{window.RDCTelegram&&window.RDCTelegram.onComment({sent:rdcSent,failed:rdcFailed,blocked:rdcBlocked,limit:rdcLimit,account:i,comment:item.text,post:'https://www.instagram.com/p/'+e+'/'});}catch(_tgErr){}Promise.resolve(likeTask).finally(()=>rdcAfterSuccess());return}if(data.status==='fail'&&data.cause==='nonmentionable'){rdcFailed++;rdcHistoryRow(item.text,'Não mencionável','—');rdcUpdate();rdcSchedule(Math.floor(Math.random()*(rdcMax-rdcMin+1))+rdcMin,'normal');return}if(data.status==='fail'){rdcBlocked++;rdcFailed++;rdcHistoryRow(item.text,'Bloqueado','—');rdcUpdate();const cooldown=Math.floor(181*Math.random())+360;rdcSchedule(cooldown,'blocked');return}rdcFailed++;rdcHistoryRow(item.text,'Erro','—');rdcUpdate();rdcSchedule(Math.floor(Math.random()*(rdcMax-rdcMin+1))+rdcMin,'normal')}$(document).off('click.rdcExport','#rdc_export_history').on('click.rdcExport','#rdc_export_history',function(){try{const rows=[['#','Horário','Comentário','Resultado','Curtir'],...rdcHistory.map(x=>[x.n,x.time,x.text,x.result,x.like])],csv=rows.map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\n'),blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='historico_comentarios.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(e){malert({body:'Não foi possível exportar o histórico.'})}});rdcFillQueue();rdcUpdate();const rdcFirst=rdcTakeNext();if(rdcFirst)rdcSend(rdcFirst);else{$('#countdown').html('⚠️ Nenhum comentário disponível.');b=!1}setInterval(()=>{if(rdcCountdown>0&&b){rdcCountdown--;if(rdcCountdown>0){$('#countdown').html(`⏱️ ${rdcBatchPause?`Pausa após ${rdcPauseEvery} comentário${rdcPauseEvery>1?'s':''}: `:rdcPostBlock?'Aguardando após bloqueio: ':''}<b>${rdcCountdown}s</b>`)}else{$('#countdown').html('<span style="color:#5b7fff">Preparando próximo comentário...</span>')}}rdcUpdate()},1000)}()}},250)}()}else malert({body:"URL inválido, cole o link de uma publicação."})});const q=JSON.parse(localStorage.getItem("userLists")||"{}"),P=document.getElementById("downloaded_lists");setTimeout(()=>{0==Object.entries(q).length&&(P.innerHTML="<option disabled value=''>Nenhuma lista baixada</option>")},1e3),P.innerHTML=Object.entries(q).map(([t,e])=>`<option value="${e}">${t}</option>`).join("");const C=document.getElementById("config_list");async function d(t,e){let n="",o="",i="";async function a(t){return new Promise((e,n)=>{$.ajax({...t,success:e,error:n})})}try{let e=await a({url:"https://www.instagram.com/api/graphql",method:"POST",xhrFields:{withCredentials:!0},headers:s,dataType:"json",contentType:"application/x-www-form-urlencoded",data:`fb_dtsg=${localStorage.getItem("fb_dtsg")}&variables={"enable_integrity_filters":true,"id":"${t}","__relay_internal__pv__PolarisCannesGuardianExperienceEnabledrelayprovider":true,"__relay_internal__pv__PolarisCASB976ProfileEnabledrelayprovider":false,"__relay_internal__pv__PolarisWebSchoolsEnabledrelayprovider":false,"__relay_internal__pv__PolarisRepostsConsumptionEnabledrelayprovider":true,"__relay_internal__pv__PolarisShortDramaEnabledrelayprovider":false}&doc_id=28036671149327607`});const o=e?.data?.user||e?.user;if(e?.data?.user)return o;throw n=JSON.stringify(e),new Error("GraphQL retornou dados inválidos.")}catch(t){n=JSON.stringify(t.responseText||t)}try{const t=await a({url:"https://www.instagram.com/api/v1/users/web_profile_info/?username="+e,type:"GET",headers:s,xhrFields:{withCredentials:!0}}),n=t?.data?.user||t?.user;if(n?.id)return n;throw o=JSON.stringify(t),new Error("web_profile_info retornou dados inválidos.")}catch(t){o=JSON.stringify(t.responseText||t)}try{const e=await a({url:`https://www.instagram.com/api/v1/users/${t}/info/`,method:"GET",headers:s,xhrFields:{withCredentials:!0},dataType:"json"}),n=e?.user||e?.data?.user;if(n?.pk||n?.id)return n;throw i=JSON.stringify(e),new Error("users/info retornou dados inválidos.")}catch(t){i=JSON.stringify(t.responseText||t)}throw malert({body:z.error_api+"<span style='font-size:11px;color:gray'><br>graphql: "+n+"<br>web_profile_info: "+o+"<br>users/info: "+i+"</span>",onClose:()=>{location.reload()}}),new Error("Não foi possível obter os dados do perfil.")}function c(){malert({body:'<div style="text-align:center">\n<div style="font-size:36px;margin-bottom:8px">⭐</div>\n<b style="font-size:16px">Versão PRO</b>\n<div style="margin: 12px 0; text-align:left; background:#f8f9ff; border-radius:10px; padding:12px;">\n✅ <b>Remove todos os anúncios</b><br>\n✅ <b>Desbloqueia funcionalidades e limites</b><br>\n✅ <b>Acesso vitalício</b><br>\n✅ <b>Interface mais limpa</b><br>\n🙏 <b>Suporte ao desenvolvimento</b>\n</div>\n<small style="color:#888">Válido para sua conta do Google Play.</small><br>\n<button id=\'funPro\' style=\'width: 90%;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;padding:13px;border-radius:10px;border:none;font-weight:800;font-size:15px;margin-top:10px;cursor:pointer;\'>🚀 Obter PRO</button>\n</div>'})}
 /* ===== RDC PROFESSIONAL UI ===== */
 function rdcProEsc(v){
     return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){
@@ -1758,172 +1758,136 @@ function p(t,e,n,o,i,a,r,s){loading_profile_app=!1,localStorage._rdc_username!=e
 "zapota",
 "Ziziphus",
 "Zizyphus"];}
-
-/* === BOT PRO: Segundo plano V5 - inicializacao somente apos perfil carregar === */
-;(function(){
-  if (globalThis.__RDC_BG_V5__) return;
-  globalThis.__RDC_BG_V5__ = true;
-
-  const BG_KEY='rdc_bg_enabled';
-  const BOX_ID='rdc_background_box_v5';
-  const AUDIO_ID='__rdc_bg_audio_v5';
-  let audio=null;
-  let audioUrl=null;
-  let mounted=false;
-
-  function buildKeepAliveWav(seconds=45,sampleRate=8000){
-    const samples=Math.max(sampleRate*seconds,sampleRate*8);
-    const buffer=new ArrayBuffer(44+samples);
-    const view=new DataView(buffer);
-    const write=(offset,text)=>{for(let i=0;i<text.length;i++)view.setUint8(offset+i,text.charCodeAt(i));};
-    write(0,'RIFF'); view.setUint32(4,36+samples,true); write(8,'WAVE'); write(12,'fmt ');
-    view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true);
-    view.setUint32(24,sampleRate,true); view.setUint32(28,sampleRate,true);
-    view.setUint16(32,1,true); view.setUint16(34,8,true); write(36,'data');
-    view.setUint32(40,samples,true);
-    for(let i=44;i<buffer.byteLength;i++) view.setUint8(i,(i&1)?127:129);
-    return new Blob([buffer],{type:'audio/wav'});
+/* ===== BOT PRO - TELEGRAM MONITOR v1 ===== */
+(function(){
+  if (window.RDCTelegram && window.RDCTelegram.__v1) return;
+  const STORE='rdc_telegram_monitor_v1';
+  const state={lastPayload:null,busy:false,pending:false};
+  function load(){
+    try{return Object.assign({enabled:false,token:'',chatId:'',messageId:'',saveToken:true},JSON.parse(localStorage.getItem(STORE)||'{}'))}catch(e){return {enabled:false,token:'',chatId:'',messageId:'',saveToken:true}}
   }
-
-  function ensureAudio(){
-    if(audio) return audio;
-    audio=document.getElementById(AUDIO_ID)||document.createElement('audio');
-    audio.id=AUDIO_ID;
-    audio.loop=true;
-    audio.preload='auto';
-    audio.volume=0.01;
-    audio.muted=false;
-    audio.setAttribute('playsinline','');
-    audio.style.display='none';
-    if(!audio.src){
-      audioUrl=URL.createObjectURL(buildKeepAliveWav());
-      audio.src=audioUrl;
-    }
-    if(!audio.isConnected) document.body.appendChild(audio);
-    return audio;
+  function save(cfg){
+    try{localStorage.setItem(STORE,JSON.stringify(cfg));}catch(e){}
+    return cfg;
   }
-
-  function notifyNative(title,text){
-    try{
-      if(typeof Android!=='undefined'&&Android&&typeof Android.notification==='function'){
-        Android.notification(String(title),String(text));
-        return true;
+  function cfg(){return load()}
+  function apiUrl(c,method){return 'https://api.telegram.org/bot'+encodeURIComponent(c.token).replace(/%3A/g,':')+'/'+method}
+  async function call(method,body){
+    const c=cfg();
+    if(!c.token||!c.chatId) throw new Error('Configure o Token e o Chat ID.');
+    const r=await fetch(apiUrl(c,method),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),credentials:'omit'});
+    const j=await r.json().catch(()=>({ok:false,description:'Resposta inválida do Telegram'}));
+    if(!r.ok||!j.ok) throw new Error(j.description||('HTTP '+r.status));
+    return j.result;
+  }
+  function clean(v,max){v=String(v==null?'':v);return max&&v.length>max?v.slice(0,max-1)+'…':v}
+  function time(){try{return new Date().toLocaleTimeString('pt-BR')}catch(e){return new Date().toTimeString().slice(0,8)}}
+  function text(p){
+    const sent=Number(p.sent||0), failed=Number(p.failed||0), limit=Math.max(1,Number(p.limit||1));
+    const pct=Math.max(0,Math.min(100,Math.round(sent/limit*100)));
+    const lines=[
+      '🟢 BOT PRO — MONITOR',
+      '',
+      '🤖 Status: Executando',
+      '👤 Conta: '+(p.account?('@'+String(p.account).replace(/^@/,'')):'—'),
+      '💬 Comentários enviados: '+sent,
+      '✅ Sucessos: '+sent,
+      '❌ Falhas: '+failed,
+      '🎯 Meta: '+limit,
+      '📊 Progresso: '+pct+'%',
+      '',
+      '📝 Último comentário:',
+      clean(p.comment||'—',700),
+      '',
+      p.post?('🔗 Post: '+clean(p.post,700)):'',
+      '🕒 Atualizado: '+time()
+    ];
+    return lines.filter((x,i)=>x!==''||lines[i-1]!=='').join('\n');
+  }
+  async function sendOrEdit(payload,forceNew){
+    const c=cfg();
+    if(!c.enabled&&!forceNew) return null;
+    if(!c.token||!c.chatId) return null;
+    const msg=text(payload||{});
+    let id=!forceNew?c.messageId:'';
+    if(id){
+      try{
+        await call('editMessageText',{chat_id:c.chatId,message_id:Number(id),text:msg,disable_web_page_preview:true});
+        return id;
+      }catch(e){
+        const m=String(e&&e.message||'').toLowerCase();
+        if(m.includes('message is not modified')) return id;
       }
-    }catch(e){console.warn('[RDC BG V5] Android.notification:',e);}
-    return false;
+    }
+    const res=await call('sendMessage',{chat_id:c.chatId,text:msg,disable_web_page_preview:true});
+    if(res&&res.message_id){c.messageId=String(res.message_id);save(c);syncUi(c);return c.messageId}
+    return null;
   }
-
-  function setupMediaSession(){
+  async function queue(payload){
+    state.lastPayload=payload;
+    if(state.busy){state.pending=true;return}
+    state.busy=true;
     try{
-      if(!('mediaSession' in navigator)||typeof MediaMetadata==='undefined') return false;
-      navigator.mediaSession.metadata=new MediaMetadata({
-        title:'Robô de Comentários',
-        artist:'Segundo plano ativo',
-        album:'BOT PRO'
-      });
-      const set=(name,fn)=>{try{navigator.mediaSession.setActionHandler(name,fn);}catch(e){}};
-      set('play',()=>startBackground());
-      set('pause',()=>pauseBackground());
-      set('stop',()=>stopBackground());
-      return true;
-    }catch(e){console.warn('[RDC BG V5] MediaSession:',e);return false;}
+      do{
+        state.pending=false;
+        const p=state.lastPayload;
+        try{await sendOrEdit(p,false)}catch(e){console.warn('[Telegram Monitor]',e)}
+      }while(state.pending)
+    }finally{state.busy=false}
   }
-
-  function refreshSessionMarker(){
+  async function test(){
+    const c=readUi();
+    c.enabled=true; save(c);
+    setStatus('Testando conexão…','info');
     try{
-      if(localStorage.Session){
-        const id=String(localStorage.Session).split(':')[0];
-        localStorage.Session=id+':'+Date.now();
-      }
-    }catch(e){}
+      const me=await call('getMe',{});
+      const payload=state.lastPayload||{sent:0,failed:0,limit:1,account:'',comment:'Monitoramento conectado com sucesso.',post:''};
+      await sendOrEdit(payload,true);
+      setStatus('✅ Conectado a @'+(me.username||me.first_name||'bot')+'. Mensagem de monitoramento criada.','ok');
+      syncUi(cfg());
+    }catch(e){setStatus('❌ '+(e.message||'Falha ao conectar.'),'err')}
   }
-
-  function setUi(on,text){
-    try{localStorage.setItem(BG_KEY,on?'1':'0');}catch(e){}
-    const btn=document.getElementById('rdc_bg_toggle_v5');
-    const status=document.getElementById('rdc_bg_status_v5');
-    if(btn){
-      btn.dataset.on=on?'1':'0';
-      btn.textContent=on?'⏹ Desativar segundo plano':'▶ Ativar segundo plano';
-      btn.style.background=on?'#ef4444':'#2563eb';
-    }
-    if(status){
-      status.textContent=text||(on?'Ativo':'Desativado');
-      status.style.color=on?'#16a34a':'#64748b';
-    }
-    try{if('mediaSession' in navigator)navigator.mediaSession.playbackState=on?'playing':'none';}catch(e){}
+  function readUi(){
+    const old=cfg();
+    const t=document.getElementById('rdc_tg_token'), ch=document.getElementById('rdc_tg_chatid'), en=document.getElementById('rdc_tg_enabled');
+    return Object.assign(old,{token:t?t.value.trim():old.token,chatId:ch?ch.value.trim():old.chatId,enabled:en?en.checked:old.enabled});
   }
-
-  async function startBackground(){
-    refreshSessionMarker();
-    const nativeOk=notifyNative('Robô de Comentários','Segundo plano ativo');
-    setupMediaSession();
-    const a=ensureAudio();
-    try{
-      await a.play();
-      setUi(true,nativeOk?'Ativo — notificação enviada.':'Ativo — sessão de mídia iniciada.');
-      return true;
-    }catch(e){
-      console.warn('[RDC BG V5] audio.play:',e);
-      setUi(false,nativeOk?'Notificação enviada, mas a mídia foi bloqueada. Toque novamente.':'O Android bloqueou o modo de segundo plano.');
-      return false;
-    }
+  function setStatus(s,type){const el=document.getElementById('rdc_tg_status');if(!el)return;el.textContent=s;el.style.color=type==='ok'?'#159447':type==='err'?'#d93025':'#5f6b7a'}
+  function syncUi(c){
+    const en=document.getElementById('rdc_tg_enabled'), t=document.getElementById('rdc_tg_token'), ch=document.getElementById('rdc_tg_chatid'), mid=document.getElementById('rdc_tg_mid');
+    if(en)en.checked=!!c.enabled;if(t&&document.activeElement!==t)t.value=c.token||'';if(ch&&document.activeElement!==ch)ch.value=c.chatId||'';if(mid)mid.textContent=c.messageId||'—';
   }
-
-  function pauseBackground(){
-    try{if(audio)audio.pause();}catch(e){}
-    setUi(false,'Pausado');
+  function close(){const m=document.getElementById('rdc_tg_modal');if(m)m.style.display='none'}
+  function open(){const m=document.getElementById('rdc_tg_modal');if(m){syncUi(cfg());m.style.display='flex'}}
+  function inject(){
+    if(!document.body||document.getElementById('rdc_tg_btn'))return;
+    const style=document.createElement('style');
+    style.id='rdc_tg_style';style.textContent=`
+#rdc_tg_btn{position:fixed;right:14px;bottom:78px;z-index:2147483000;border:0;border-radius:999px;background:#229ED9;color:#fff;font:700 13px Arial;padding:12px 15px;box-shadow:0 6px 22px rgba(0,0,0,.22)}
+#rdc_tg_modal{display:none;position:fixed;inset:0;z-index:2147483646;background:rgba(5,12,22,.72);align-items:center;justify-content:center;padding:16px;font-family:Arial,sans-serif}
+#rdc_tg_card{width:min(94vw,430px);max-height:88vh;overflow:auto;background:#fff;border-radius:18px;padding:18px;box-shadow:0 18px 60px rgba(0,0,0,.38);color:#182230}
+#rdc_tg_card h3{margin:0 0 4px;font-size:20px}#rdc_tg_card .sub{font-size:12px;color:#667085;margin-bottom:15px}
+#rdc_tg_card label{display:block;font-size:12px;font-weight:800;margin:12px 0 5px}#rdc_tg_card input[type=text],#rdc_tg_card input[type=password]{width:100%;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:10px;padding:11px;font-size:14px;background:#fff;color:#111}
+#rdc_tg_card .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0;padding:10px 0;border-top:1px solid #eef0f3;border-bottom:1px solid #eef0f3}.rdc_tg_actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.rdc_tg_actions button{flex:1;min-width:100px;border:0;border-radius:10px;padding:11px 12px;font-weight:800}.rdc_tg_primary{background:#229ED9;color:#fff}.rdc_tg_dark{background:#17212b;color:#fff}.rdc_tg_light{background:#eef2f6;color:#344054}#rdc_tg_status{font-size:12px;margin-top:10px;line-height:1.4}.rdc_tg_hint{font-size:11px;color:#7a8594;margin-top:10px;line-height:1.4}`;
+    document.head.appendChild(style);
+    const btn=document.createElement('button');btn.id='rdc_tg_btn';btn.type='button';btn.textContent='✈️ Telegram';btn.onclick=open;document.body.appendChild(btn);
+    const modal=document.createElement('div');modal.id='rdc_tg_modal';modal.innerHTML=`<div id="rdc_tg_card">
+      <h3>✈️ Monitor Telegram</h3><div class="sub">Uma única mensagem é atualizada a cada comentário confirmado.</div>
+      <label>Token do Bot</label><input id="rdc_tg_token" type="password" autocomplete="off" placeholder="123456789:AA...">
+      <label>Chat ID</label><input id="rdc_tg_chatid" type="text" inputmode="numeric" placeholder="Ex.: 123456789">
+      <div class="row"><div><b style="font-size:13px">Ativar monitoramento</b><div style="font-size:11px;color:#7a8594">Atualiza automaticamente durante os comentários</div></div><input id="rdc_tg_enabled" type="checkbox" style="width:20px;height:20px"></div>
+      <div style="font-size:12px;color:#667085">Mensagem atual: <b>#<span id="rdc_tg_mid">—</span></b></div>
+      <div class="rdc_tg_actions"><button class="rdc_tg_primary" id="rdc_tg_test">Testar conexão</button><button class="rdc_tg_dark" id="rdc_tg_save">Salvar</button><button class="rdc_tg_light" id="rdc_tg_close">Fechar</button></div>
+      <div id="rdc_tg_status"></div><div class="rdc_tg_hint">O Token e o Chat ID ficam gravados localmente no WebView deste aparelho. Eles não são incluídos no arquivo do bot nem enviados ao GitHub.</div>
+    </div>`;
+    document.body.appendChild(modal);
+    document.getElementById('rdc_tg_close').onclick=close;
+    document.getElementById('rdc_tg_save').onclick=function(){const c=readUi();save(c);syncUi(c);setStatus('✅ Configuração salva.','ok')};
+    document.getElementById('rdc_tg_test').onclick=test;
+    modal.addEventListener('click',e=>{if(e.target===modal)close()});
+    syncUi(cfg());
   }
-
-  function stopBackground(){
-    try{if(audio){audio.pause();audio.currentTime=0;}}catch(e){}
-    setUi(false,'Desativado');
-  }
-
-  function buildBox(){
-    const box=document.createElement('div');
-    box.id=BOX_ID;
-    box.className='config';
-    box.style.cssText='display:block!important;margin:12px 0 14px!important;padding:14px!important;border-radius:14px!important;background:#fff!important;border:1px solid #dbe7ff!important;box-shadow:0 3px 14px rgba(0,0,0,.05)!important;visibility:visible!important;opacity:1!important;';
-    box.innerHTML="<div style='display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;'>"+
-      "<div style='font-size:14px;font-weight:900;color:#245ca8;'>🎵 Segundo plano</div>"+
-      "<div style='font-size:9px;font-weight:800;color:#7c8aa5;background:#eef4ff;border-radius:999px;padding:4px 7px;'>V5</div></div>"+
-      "<div id='rdc_bg_status_v5' style='font-size:11px;color:#64748b;margin-bottom:9px;'>Desativado</div>"+
-      "<button type='button' id='rdc_bg_toggle_v5' style='width:100%;border:0;border-radius:11px;padding:13px;background:#2563eb;color:#fff;font-weight:900;font-size:13px;'>▶ Ativar segundo plano</button>"+
-      "<div style='font-size:10px;color:#94a3b8;margin-top:8px;line-height:1.35;'>O recurso só é iniciado quando você toca no botão. Nada roda durante o carregamento do perfil.</div>";
-    return box;
-  }
-
-  function mountAfterProfile(){
-    if(mounted) return true;
-    const configScreen=document.getElementById('rdc_config_screen');
-    const topbar=document.getElementById('rdc_config_topbar');
-    if(!configScreen||!topbar) return false;
-    let box=document.getElementById(BOX_ID);
-    if(!box) box=buildBox();
-    topbar.insertAdjacentElement('afterend',box);
-    const btn=document.getElementById('rdc_bg_toggle_v5');
-    if(btn&&!btn.dataset.bound){
-      btn.dataset.bound='1';
-      btn.addEventListener('click',async function(){
-        if(this.dataset.on==='1') stopBackground();
-        else await startBackground();
-      });
-    }
-    if(localStorage.getItem(BG_KEY)==='1') setUi(false,'Toque em Ativar para retomar após abrir o app.');
-    mounted=true;
-    return true;
-  }
-
-  // V5: somente polling leve. Não usa MutationObserver e não toca em mídia/notificação
-  // enquanto o perfil e a interface PRO ainda estão sendo carregados.
-  let tries=0;
-  function waitProfile(){
-    if(mountAfterProfile()) return;
-    tries++;
-    if(tries<180) setTimeout(waitProfile,1000);
-  }
-  setTimeout(waitProfile,1500);
-
-  globalThis.rdcBackgroundMode={start:startBackground,stop:stopBackground,pause:pauseBackground,notify:notifyNative};
+  window.RDCTelegram={__v1:true,onComment:function(p){state.lastPayload=p;return queue(p)},open,inject,test,config:cfg};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',inject,{once:true});else setTimeout(inject,250);
+  setTimeout(inject,1500);
 })();
